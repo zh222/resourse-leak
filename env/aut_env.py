@@ -31,8 +31,6 @@ def jaccard_similarity(state1, state2):
     intersection = np.sum(np.logical_and(state1, state2))
     union = np.sum(np.logical_or(state1, state2))
     similarity = intersection / union if union != 0 else 0
-    print(state1)
-    print(state2)
     return similarity
 
 
