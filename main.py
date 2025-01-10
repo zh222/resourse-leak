@@ -109,7 +109,7 @@ if __name__ == '__main__':
         "random"
     ]
     apps = {
-        "bankwallet": "apk/high/duckduckgo_106634.apk",
+        "butterfly": "apk/low/butterfly_6043.apk",
     }
     android_version = get_android_version()
     devices_name = get_device_name()
