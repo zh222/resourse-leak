@@ -30,29 +30,29 @@ def get_android_version():
     return result
 
 
-def run(al, app):
+def run(al, app, package, main_activity, activities):
     global agent, env
     all_res = []
     for i in range(5):  # 每种实验配置执行5次
-        package, Main_activity, activities = component_extract(
-            f'apk/{app}/AndroidManifest.xml')
         start_time = time.time()
-        if al == 'q_res':
-            env = AndroidAppEnv(package, Main_activity, 'resources', activities, android_version, devices_name[0],
-                                ports[0], start_time, resources[0])
+        if al.startswith('q_res'):
+            env = AndroidAppEnv(package, main_activity, 'resources', activities, android_version, devices_name[0],
+                                ports[0], start_time, al.split('_')[-1])
             agent = QLearningAgent(env)
             agent.learn(start_time)
         elif al == 'q_cov':
-            env = AndroidAppEnv(package, Main_activity, 'cov', activities, android_version, devices_name[0],
-                                ports[0], start_time, resources[0])
+            env = AndroidAppEnv(package, main_activity, 'cov', activities, android_version, devices_name[0],
+                                ports[0], start_time, al.split('_')[-1])
             agent = QLearningAgent(env)
             agent.learn(start_time)
         elif al == 'random':
-            env = AndroidAppEnv(package, Main_activity, 'cov', activities, android_version, devices_name[0],
-                                ports[0], start_time, resources[0])
+            env = AndroidAppEnv(package, main_activity, 'cov', activities, android_version, devices_name[0],
+                                ports[0], start_time, al.split('_')[-1])
             agent = RandomAgent(env)
             agent.learn(start_time)
         all_res.append([len(env.bug_report), len(env.list_activities), len(env.state)])
+        if not os.path.exists('result'):
+            os.mkdir('result')
         if not os.path.exists(f'result/{app}'):
             os.mkdir(f'result/{app}')
         if not os.path.exists(f'result/{app}/{i + 1}'):
@@ -78,7 +78,6 @@ def run(al, app):
         with open(f'result/{app}/{i + 1}/{al}_state_resource.json', 'w', encoding='utf-8') as json_file:
             json.dump(env.collect_resource, json_file, ensure_ascii=False, indent=4)
         try:
-            # uninstall_app(package)
             env.close()
         except:
             pass
@@ -88,35 +87,30 @@ def run(al, app):
 def main():
     data = {k_apps: {k_als: [] for k_als in als} for k_apps in apps.keys()}
     for app, apk_path in apps.items():
-        apktool(app, apk_path)
+        apktool(apk_path)
         install_apk(apk_path)
+        package, Main_activity, activities = component_extract(
+            f'{apk_path.split(".")[0]}/AndroidManifest.xml')
         for al in als:
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} {app} {al} start")
-            res = run(al, app)
+            res = run(al, app, package, Main_activity, activities)
             data[app][al] = res
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} {app} {al} stop")
+        uninstall_app(package)
 
 
 if __name__ == '__main__':
     als = [
-        "q_res_java_heap",
-        "q_res_native_heap",
+        "q_res_java heap",
+        "q_res_native heap",
         "q_res_cpu",
         "q_res_rss"
         "q_cov",
         "random"
     ]
-
     apps = {
-        # 'KitchenOwl': 'apk/KitchenOwl.apk',
-        'taz': 'apk/taz.apk'
+        "bankwallet": "apk/low/butterfly_6043.apk",
     }
-    resources = [
-        "java heap",
-        "native heap",
-        "cpu",
-
-    ]
     android_version = get_android_version()
     devices_name = get_device_name()
     ports = [
