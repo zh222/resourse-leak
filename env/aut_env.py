@@ -45,7 +45,7 @@ class AndroidAppEnv(gym.Env):
         self.exe_number = 50  # 中性事件执行次数
         self.OBSERVATION_SPACE = 2000  # 最大组件个数，用于one-hot编码
         self.epi = 0  # 训练的轮次
-        self.bug_report = {}  # 发现的内存泄漏bug
+        self.bug_report = {}  # 发现的老化缺陷
         self.activities = activities
         self.activities_number = len(self.activities) + 10
         self.start_time = start_time  # 测试起始时间

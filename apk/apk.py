@@ -20,9 +20,9 @@ def uninstall_app(package_name):
     assert 'Success' in result, "Failed to uninstall APK"
 
 
-def apktool(app_name, apk_path):
+def apktool(apk_path):
     print('开始执行apktool')
-    command = f'apk\\apktool d {apk_path} -o apk\\{app_name}'
+    command = f'apk\\apktool d {apk_path} -o {apk_path.split(".")[0]}'
     result = run_adb_command(command)
     if result != '':
         print("Apktool successfully.")
@@ -138,5 +138,5 @@ def count_lines(directory, extensions=(".java", ".kt")):
 
 
 if __name__ == '__main__':
-    path = "D:\File\Android-Aging-Test-ss_test\paper\\app rource\com.fsck.k9_39020_src"
+    path = "D:\File\Android-Aging-Test-ss_test\paper\\app rource\org.totschnig.myexpenses_774_src"
     print(count_lines(path))
