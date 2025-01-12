@@ -371,11 +371,14 @@ class AndroidAppEnv(gym.Env):
                                            'long-clickable': long_clickable}})
                     i += 1
                 if tag == "android.widget.EditText":
-                    e.click()
-                    current_string = ''.join(
-                        random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789')
-                        for _ in range(random.randint(5, 10)))
-                    e.send_keys(current_string)
+                    self.views.update({i: {'view': e, 'identifier': self.return_attribute(e), 'class_name': tag,
+                                           'clickable': clickable, 'scrollable': scrollable,
+                                           'long-clickable': long_clickable}})
+                    # e.click()
+                    # current_string = ''.join(
+                    #     random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789')
+                    #     for _ in range(random.randint(5, 10)))
+                    # e.send_keys(current_string)
                 self.static_views.append(self.return_attribute(e))
         self.views[i] = {'view': None}
         self.observation = self._get_observation()
@@ -403,12 +406,12 @@ class AndroidAppEnv(gym.Env):
         return attribute
 
     def _close(self):
-        proc = subprocess.Popen("adb shell dumpsys window | findstr mCurrentFocus",
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        memoryInfo, errInfo = proc.communicate()
-        app_package_name = memoryInfo.decode().split('/')[0].split(' ')[-1]
-        command = ['adb', 'shell', 'am', 'force-stop', app_package_name]
-        subprocess.run(command, capture_output=True, text=True)
+        # proc = subprocess.Popen("adb shell dumpsys window | findstr mCurrentFocus",
+        #                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        # memoryInfo, errInfo = proc.communicate()
+        # app_package_name = memoryInfo.decode().split('/')[0].split(' ')[-1]
+        # command = ['adb', 'shell', 'am', 'force-stop', app_package_name]
+        # subprocess.run(command, capture_output=True, text=True)
         self.driver.quit()
         pass
 
