@@ -104,7 +104,7 @@ if __name__ == '__main__':
         "q_res_java heap",
         "q_res_native heap",
         "q_res_cpu",
-        "q_res_rss"
+        "q_res_rss",
         "q_cov",
         "random"
     ]
@@ -117,4 +117,3 @@ if __name__ == '__main__':
         '4723',
     ]
     main()
-
