@@ -171,9 +171,9 @@ class AndroidAppEnv(gym.Env):
         self.current_activity = get_current_activity()
         temp_resource = get_resource(self.package)
         append_resource(self.package, self.collect_resource)
-        resource_sensitivity = compute_resource_sensitivity(self.resource, temp_resource, self.resource_type)
         reward = -1
         if self.al == "resources":
+            resource_sensitivity = compute_resource_sensitivity(self.resource, temp_resource, self.resource_type)
             if self.current_activity and (self.current_activity not in self.list_activities or self.is_doubted_state()):
                 self.list_activities[self.current_activity].append([self.get_tuple_observation(), time.time() - self.start_time])
                 self.DOC()
