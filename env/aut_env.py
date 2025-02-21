@@ -12,7 +12,8 @@ import time
 import xml.etree.ElementTree as ET
 from selenium.common import StaleElementReferenceException, WebDriverException, InvalidSessionIdException, \
     InvalidElementStateException
-from resourse.resourse import init_resource, append_resource, get_resource, compute_resource_sensitivity, judge_resource
+from resourse.resourse import (init_resource, append_resource, get_resource, compute_resource_sensitivity,
+                               judge_resource, compute_resource_sensitivitis)
 
 
 def get_current_activity():
@@ -90,7 +91,9 @@ class AndroidAppEnv(gym.Env):
         # 已遍历到的状态
         self.state = set()
         self.resource = get_resource(self.package)  # 当前状态的资源占用，用于设置 reward
+        self.weight = {key: 1 for key in self.resource.keys()}
         self.collect_resource = init_resource(self.package)  # 收集各个状态下的各种资源的大小，用于相关性分析
+        self.check_activity()
 
     def reset(self, seed=None, optional=None):
         super().reset(seed=seed)
@@ -129,7 +132,7 @@ class AndroidAppEnv(gym.Env):
             self.update_views()
             return self.observation, -100.0, True, False, {}
         except Exception as e:
-            print(e)
+            # print(e)
             self._start()
             self.update_views()
             return self.observation, -100.0, True, False, {}
@@ -143,7 +146,7 @@ class AndroidAppEnv(gym.Env):
             self.action(current_view, action_name)
         except Exception as e:
             print("操作失败，pass")
-            print(e)
+            # print(e)
             self.update_views()
             return self.observation, 0, self._termination(), False, {}
         out_side, reward = self.check_activity()
@@ -173,20 +176,33 @@ class AndroidAppEnv(gym.Env):
         append_resource(self.package, self.collect_resource)
         reward = -1
         if self.al == "resources":
-            resource_sensitivity = compute_resource_sensitivity(self.resource, temp_resource, self.resource_type)
             if self.current_activity and (self.current_activity not in self.list_activities or self.is_doubted_state()):
                 self.list_activities[self.current_activity].append([self.get_tuple_observation(), time.time() - self.start_time])
-                self.DOC()
+                self.Edittext()
+                self.scroll_neutral()
+                is_bug = self.DOC()
+                self.home_return_operation()
+                self.notification_operation()
+                self.list_activities[self.current_activity][-1].extend([is_bug, temp_resource])
                 self.update_views()
+            later_resource = get_resource(self.package)
+            resource_sensitivity = compute_resource_sensitivitis(self.resource, temp_resource, self.weight)
             if self.get_tuple_observation() not in self.state:
                 reward = resource_sensitivity
                 self.state.add(self.get_tuple_observation())
             self.resource = get_resource(self.package)
+            if self.resource_type == 'all':
+                reward = compute_resource_sensitivitis(self.resource, later_resource, {key: 1 for key in self.resource.keys()})
             return False, reward
         else:
             if self.current_activity and (self.current_activity not in self.list_activities or self.is_doubted_state()):
                 self.list_activities[self.current_activity].append([self.get_tuple_observation(), time.time() - self.start_time])
-                self.DOC()
+                self.Edittext()
+                self.scroll_neutral()
+                is_bug = self.DOC()
+                self.home_return_operation()
+                self.notification_operation()
+                self.list_activities[self.current_activity][-1].extend([is_bug, temp_resource])
                 self.update_views()
                 reward = 1000
             else:
@@ -200,7 +216,7 @@ class AndroidAppEnv(gym.Env):
         # 新activity或者与之前相似度差异较大的state视为待测state
         if not self.list_activities[self.current_activity]:
             return True
-        for state, _ in self.list_activities[self.current_activity]:
+        for state, _, _, _ in self.list_activities[self.current_activity]:
             if jaccard_similarity(state, self.get_tuple_observation()) > 0.5:
                 return False
         return True
@@ -257,7 +273,7 @@ class AndroidAppEnv(gym.Env):
                 self.driver.swipe(x, int(y * 0.3), x, int(y * 0.5), duration=200)
             except InvalidElementStateException:
                 print(f'swipe not performed start_position: ({x}, {y}), end_position: ({x}, {y + 20})')
-        else:
+        elif action_number[1] == 1:
             try:
                 self.driver.swipe(x, int(y * 0.5), x, int(y * 0.3), duration=200)
             except InvalidElementStateException:
@@ -319,9 +335,90 @@ class AndroidAppEnv(gym.Env):
             append_resource(self.package, resource)
         judge_resource(resource)
         if resource['is_bug']:
-            self.bug_report[self.current_activity + '_' + ''.join(list(map(str, self.get_tuple_observation())))]\
+            self.bug_report[self.current_activity + '_doc_' + ''.join(list(map(str, self.get_tuple_observation())))]\
                 = [resource, time.time() - self.start_time]
         print('DOC执行结束')
+        for bug in resource['is_bug']:
+            self.weight[bug] += 1
+        return resource['is_bug']
+
+    def Edittext(self):
+        print('开始执行text ' + self.current_activity + str(self.get_tuple_observation()))
+        text_boxes = self.driver.find_elements(AppiumBy.CLASS_NAME, "android.widget.EditText")  # 查找所有文本框
+        for text_box in text_boxes:
+            resource = init_resource(self.package)
+            for i in range(self.exe_number):
+                text_box.click()  # 选中文本框
+                current_string = ''.join(
+                    random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789')
+                    for _ in range(random.randint(5, 10)))
+                text_box.send_keys(current_string)
+                text_box.clear()
+                append_resource(self.package, resource)
+            judge_resource(resource)
+            if resource['is_bug']:
+                name = self.current_activity + '_text_' + self.return_attribute(text_box)
+                if name not in self.bug_report:
+                    self.bug_report[name] = [resource, time.time() - self.start_time]
+                    for bug in resource['is_bug']:
+                        self.weight[bug] += 1
+        print('text 执行完毕')
+
+    def home_return_operation(self):
+        print('开始执行home ' + self.current_activity + str(self.get_tuple_observation()))
+        resource = init_resource(self.package)
+        for i in range(self.exe_number):
+            self.driver.press_keycode(3)
+            time.sleep(2)
+            self.driver.activate_app(self.package)
+            time.sleep(2)
+            append_resource(self.package, resource)
+        judge_resource(resource)
+        if resource['is_bug']:
+            self.bug_report[self.current_activity + '_home_' + ''.join(list(map(str, self.get_tuple_observation())))] \
+                = [resource, time.time() - self.start_time]
+        print('home执行结束')
+        for bug in resource['is_bug']:
+            self.weight[bug] += 1
+
+    def notification_operation(self):
+        print('开始执行通知栏 ' + self.current_activity + str(self.get_tuple_observation()))
+        resource = init_resource(self.package)
+        for i in range(self.exe_number):
+            self.driver.open_notifications()
+            time.sleep(2)
+            self.driver.press_keycode(4)
+            time.sleep(2)
+            append_resource(self.package, resource)
+        judge_resource(resource)
+        if resource['is_bug']:
+            self.bug_report[self.current_activity + '_notification_' + ''.join(list(map(str, self.get_tuple_observation())))] \
+                = [resource, time.time() - self.start_time]
+        print('通知栏执行结束')
+        for bug in resource['is_bug']:
+            self.weight[bug] += 1
+
+    def scroll_neutral(self):
+        print('开始执行滑动操作 ')
+        for current_view in self.views.values():
+            if current_view['scrollable'] == 'true':
+                bounds = re.findall(r'\d+', current_view['view'].get_attribute('bounds'))
+                bounds = [int(i) for i in bounds]
+                resource = init_resource(self.package)
+                for i in range(self.exe_number):
+                    self.scroll_action([0, 0], bounds)
+                    time.sleep(2)
+                    self.scroll_action([0, 1], bounds)
+                    time.sleep(2)
+                    append_resource(self.package, resource)
+                judge_resource(resource)
+                if resource['is_bug']:
+                    self.bug_report[self.current_activity + '_notification_' + ''.join(
+                        list(map(str, self.get_tuple_observation())))] \
+                        = [resource, time.time() - self.start_time]
+                for bug in resource['is_bug']:
+                    self.weight[bug] += 1
+        print('滑动操作执行完毕')
 
     def update_views(self):
         # 反复获取当前页面的所有元素信息，防止出现问题
@@ -339,7 +436,7 @@ class AndroidAppEnv(gym.Env):
             except Exception as e:
                 i += 1
                 print(f"第{i}次获取元素信息失败，重新获取")
-                print(e)
+                # print(e)
                 if i >= 5:
                     print('Too Many times tried')
                     try:
@@ -380,7 +477,7 @@ class AndroidAppEnv(gym.Env):
                     #     for _ in range(random.randint(5, 10)))
                     # e.send_keys(current_string)
                 self.static_views.append(self.return_attribute(e))
-        self.views[i] = {'view': None}
+        self.views[i] = {'view': None, 'scrollable': False}
         self.observation = self._get_observation()
 
     def return_attribute(self, my_view):
@@ -426,23 +523,23 @@ class AndroidAppEnv(gym.Env):
                 self.observation = self._get_observation()
                 break
             except Exception as e:
-                print(f"连接失败，尝试重新连接: {e}")
+                print(f"连接失败，尝试重新连接")
                 try:
                     self._close()
                     time.sleep(2)
                 except:
                     time.sleep(2)
             i += 1
-            if i % 15 == 0:
-                try:
-                    subprocess.Popen('adb shell reboot -p',
-                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).communicate()
-                    time.sleep(30)
-                except:
-                    pass
-                subprocess.Popen('D:\soft\Genymotion\player --vm-name "Google Pixel"',
-                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).communicate()
-                time.sleep(30)
+            # if i % 15 == 0:
+            #     try:
+            #         subprocess.Popen('adb shell reboot -p',
+            #                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).communicate()
+            #         time.sleep(30)
+            #     except:
+            #         pass
+            #     subprocess.Popen('D:\soft\Genymotion\player --vm-name "Google Pixel"',
+            #                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).communicate()
+            #     time.sleep(30)
 
 
 if __name__ == '__main__':

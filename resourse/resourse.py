@@ -38,7 +38,7 @@ def analyze_resources(resources):
     """
     对每个资源计算斜率，P 值以及 R 值
     """
-    flag = False
+    flag = []
     for resource, value in resources.items():
         slope, p_value, r_value = linear_regression_analysis(value)
         resources[resource] = {
@@ -49,16 +49,19 @@ def analyze_resources(resources):
             'is_bug': bool(slope > 0 and p_value < 0.05)
         }
         if resources[resource]['is_bug']:
-            flag = True
+            flag.append(resource)
     resources['is_bug'] = flag
 
 
 def get_pid(package_name):
     command = f'adb shell ps | findstr {package_name}'
-    result = run_adb_command(command).split()
-    if len(result) > 1:
-        return result[1]
-    else:
+    try:
+        result = run_adb_command(command).split()
+        if len(result) > 1:
+            return result[1]
+        else:
+            return ''
+    except:
         return ''
 
 
@@ -279,6 +282,11 @@ def get_resource(package_name):
 def compute_resource_sensitivity(resource1, resource2, resource_type):
     return 1000 * (resource2[resource_type] - resource1[resource_type]) / resource1[resource_type]
 
+def compute_resource_sensitivitis(resource1, resource2, resource_type_weight):
+    reward = 0
+    for key, value in resource1.items():
+        reward += resource_type_weight[key] * (resource2[key] - resource1[key]) / value
+    return 1000 * reward
 
 def compute_multi_resource_sensitivity(resource1, resource2, resource_types):
     res = {}
@@ -335,19 +343,29 @@ def classify_resources_by_correlation(data, n_clusters):
     返回:
         dict: 分类结果，key是类别ID，value是资源名称列表。
     """
+    # 将数据转换为 DataFrame
     data_df = pd.DataFrame(data)
+
     # 计算资源之间的相关性矩阵（皮尔逊相关性）
     correlation_matrix = data_df.corr(method='pearson')
+
+    # 保留列名（资源名称）
+    resource_names = correlation_matrix.columns
+
     # 层次聚类, 使用 1 - 相关性值作为距离
+    correlation_matrix = np.nan_to_num(correlation_matrix.values, nan=0.0, posinf=1.0, neginf=-1.0)
     linkage_matrix = linkage(1 - correlation_matrix, method='average')
+
     # 根据聚类结果划分资源类别
     clusters = fcluster(linkage_matrix, t=n_clusters, criterion='maxclust')
+
     # 构造分类结果字典
     cluster_dict = {}
-    for resource, cluster_id in zip(correlation_matrix.columns, clusters):
+    for resource, cluster_id in zip(resource_names, clusters):
         if cluster_id not in cluster_dict:
             cluster_dict[cluster_id] = []
         cluster_dict[cluster_id].append(resource)
+
     return cluster_dict
 
 

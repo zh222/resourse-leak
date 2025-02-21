@@ -33,9 +33,19 @@ def get_android_version():
 def run(al, app, package, main_activity, activities):
     global agent, env
     all_res = []
-    for i in range(5):  # 每种实验配置执行5次
+    for i in range(2):  # 每种实验配置执行5次,
         start_time = time.time()
         if al.startswith('q_res'):
+            env = AndroidAppEnv(package, main_activity, 'resources', activities, android_version, devices_name[0],
+                                ports[0], start_time, al.split('_')[-1])
+            agent = QLearningAgent(env)
+            agent.learn(start_time)
+        elif al.startswith('q_res_all'):
+            env = AndroidAppEnv(package, main_activity, 'resources', activities, android_version, devices_name[0],
+                                ports[0], start_time, al.split('_')[-1])
+            agent = QLearningAgent(env)
+            agent.learn(start_time)
+        elif al.startswith('q_res_weight'):
             env = AndroidAppEnv(package, main_activity, 'resources', activities, android_version, devices_name[0],
                                 ports[0], start_time, al.split('_')[-1])
             agent = QLearningAgent(env)
@@ -64,17 +74,21 @@ def run(al, app, package, main_activity, activities):
             csv_writer = csv.writer(f)
             for activity in env.list_activities:
                 csv_writer.writerow([activity])
+        with open(f'result/{app}/{i + 1}/{al}_states.csv', 'w', newline='', encoding='utf-8') as f:
+            csv_writer = csv.writer(f)
+            for state in env.state:
+                csv_writer.writerow([state])
         with open(f'result/{app}/{i + 1}/{al}_coverage.csv', 'w', newline='', encoding='utf-8') as f:
             csv_writer = csv.writer(f)
             csv_writer.writerow(['bugs', f'activities/{len(activities)}', 'states'])
             csv_writer.writerow([len(env.bug_report), len(env.list_activities), len(env.state)])
         with open(f'result/{app}/{i + 1}/{al}_state_time.csv', 'w', newline='', encoding='utf-8') as f:
             csv_writer = csv.writer(f)
-            csv_writer.writerow(['activity_state', 'time'])
+            csv_writer.writerow(['activity_state', 'time', 'is_bug', 'resource'])
             for activity, value in env.list_activities.items():
                 if activity:
                     for state in value:
-                        csv_writer.writerow([activity + '_' + ''.join(map(str, state[0])), state[1]])
+                        csv_writer.writerow([activity + '_' + ''.join(map(str, state[0])), state[1], state[2], state[3]])
         with open(f'result/{app}/{i + 1}/{al}_state_resource.json', 'w', encoding='utf-8') as json_file:
             json.dump(env.collect_resource, json_file, ensure_ascii=False, indent=4)
         try:
@@ -101,15 +115,21 @@ def main():
 
 if __name__ == '__main__':
     als = [
-        "q_res_java heap",
-        "q_res_native heap",
-        "q_res_cpu",
-        "q_res_rss",
-        "q_cov",
-        "random"
+        # "q_res_java heap",
+        # "q_res_native heap",
+        # "q_res_cpu",
+        # "q_res_rss",
+        # "q_cov",
+        # "random",
+        # "q_res_all",
+        "q_res_weight",
     ]
     apps = {
-        "butterfly": "apk/low/butterfly_6043.apk",
+        # "keepass": "apk/middle/keepass_25133.apk",
+        # "duckduckgo": "apk/high/duckduckgo_106634.apk",
+        # "k9mail": "apk/high/k9mail_162720.apk",
+        # "myexpenses": "apk/high/myexpenses_137437.apk",
+        "newpipe": "apk/high/newpipe_57363.apk"
     }
     android_version = get_android_version()
     devices_name = get_device_name()

@@ -14,7 +14,7 @@ from selenium.common import StaleElementReferenceException, WebDriverException, 
     InvalidElementStateException
 from resourse.resourse import (init_resource, append_resource, get_resource, compute_multi_resource_sensitivity,
                                judge_resource, classify_resources_by_correlation)
-from apk.apk import install_apk, uninstall_app, component_extract
+from apk.apk import component_extract, apktool, install_apks, uninstall_apps
 import csv
 import os
 import subprocess
@@ -29,9 +29,9 @@ def run_adb_command(command):
     return result.stdout.strip()
 
 
-def get_current_activity():
-    proc = subprocess.Popen("adb shell dumpsys window | findstr mCurrentFocus",
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+def get_current_activity(device_name):
+    command = f"adb -s {device_name} shell dumpsys window | findstr mCurrentFocus"
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     memoryInfo, errInfo = proc.communicate()
     res = memoryInfo.decode().split('/')[-1].split('}')[0]
     if "mCurrentFocus" not in res:
@@ -50,9 +50,9 @@ def get_device_name():
 
 
 def get_android_version():
-    command = "adb shell getprop ro.build.version.release"
-    result = run_adb_command(command)
-    return result
+    # command = "adb shell getprop ro.build.version.release"
+    # result = run_adb_command(command)
+    return '11'
 
 
 def jaccard_similarity(state1, state2):
@@ -76,6 +76,7 @@ class multi_AppEnv(gym.Env):
             "platformName": "android",
             "platformVersion": version,
             "deviceName": device_name,
+            "udid": device_name,
             "appPackage": app_package_name,
             "appActivity": main_activity,
             "skipDeviceInitialization": True,  # 跳过初始化过程
@@ -88,7 +89,9 @@ class multi_AppEnv(gym.Env):
         self.driver = webdriver.Remote(f'http://127.0.0.1:{port}/wd/hub', self.desired_caps)
         # 运行时包名与页面元素等信息的存储
         self.package = app_package_name  # 当前app的包名
-        self.current_activity = get_current_activity()  # 顶层activity名
+        self.device_name = device_name  # 当前模拟器的设备名
+        self.port = port  # 当前模拟器的端口号
+        self.current_activity = get_current_activity(device_name)  # 顶层activity名
         self.static_views = []  # 当前页面所有view的信息
         self.views = {}  # 当前页面的所有event的信息
         self.update_views()  # 更新第一个页面的view
@@ -122,7 +125,7 @@ class multi_AppEnv(gym.Env):
         except:
             pass
         self._start()
-        self.current_activity = get_current_activity()
+        self.current_activity = get_current_activity(self.device_name)
         self.update_views()
 
         return self.observation, {}
@@ -189,14 +192,14 @@ class multi_AppEnv(gym.Env):
         if self.package != self.driver.current_package and self.driver.current_package != "com.android.permissioncontroller":
             return True, -1000
         self.update_views()
-        self.current_activity = get_current_activity()
+        self.current_activity = get_current_activity(self.device_name)
         temp_resource = get_resource(self.package)
         resource_sensitivity = compute_multi_resource_sensitivity(self.resource, temp_resource, resource_types)
         state.add(self.get_tuple_observation())
         if self.current_activity and (self.current_activity not in list_activities or self.is_doubted_state()):
+            list_activities[self.current_activity].append([self.get_tuple_observation(), time.time() - start_time])
             self.DOC()
             self.update_views()
-            list_activities[self.current_activity].append([self.get_tuple_observation(), time.time() - start_time])
             self.resource = get_resource(self.package)
             return False, resource_sensitivity
         else:
@@ -409,12 +412,12 @@ class multi_AppEnv(gym.Env):
         return attribute
 
     def _close(self):
-        proc = subprocess.Popen("adb shell dumpsys window | findstr mCurrentFocus",
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        memoryInfo, errInfo = proc.communicate()
-        app_package_name = memoryInfo.decode().split('/')[0].split(' ')[-1]
-        command = ['adb', 'shell', 'am', 'force-stop', app_package_name]
-        subprocess.run(command, capture_output=True, text=True)
+        # proc = subprocess.Popen("adb shell dumpsys window | findstr mCurrentFocus",
+        #                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        # memoryInfo, errInfo = proc.communicate()
+        # app_package_name = memoryInfo.decode().split('/')[0].split(' ')[-1]
+        # command = ['adb', 'shell', 'am', 'force-stop', app_package_name]
+        # subprocess.run(command, capture_output=True, text=True)
         self.driver.quit()
         pass
 
@@ -422,9 +425,9 @@ class multi_AppEnv(gym.Env):
         i = 0
         while True:
             try:
-                self.driver = webdriver.Remote('http://127.0.0.1:4723/wd/hub', self.desired_caps)
+                self.driver = webdriver.Remote(f'http://127.0.0.1:{self.port}/wd/hub', self.desired_caps)
                 time.sleep(5)
-                self.current_activity = get_current_activity()
+                self.current_activity = get_current_activity(self.device_name)
                 self.update_views()
                 self.observation = self._get_observation()
                 break
@@ -441,25 +444,38 @@ class multi_AppEnv(gym.Env):
 if __name__ == '__main__':
     apps = {
         # 'KitchenOwl': 'apk/KitchenOwl.apk',
-        'Gpslogger': 'apk/Gpslogger.apk'
+        'duckduckgo': 'apk/high/duckduckgo_106634.apk'
     }
     data = None  # 单智能体实验时收集到的资源指标时序数据
-    n = 3  # 把资源分为多少类
+    n = 2  # 把资源分为多少类
     ports = [
         # 端口号，用于与不同的模拟器通信
         '4723',
+        '4725',
+        '4727',
+        '4729'
     ]
     android_version = get_android_version()  # 安卓版本
     devices_name = get_device_name()  # 设备名
-    resource_types = classify_resources_by_correlation(data, n)
     for app, apk_path in apps.items():
+        data = {}
+        for i in range(5):
+            with open(f'result/duckduckgo/{i + 1}/q_cov_state_resource.json', 'r') as f:
+                json_data = json.load(f)
+                for k, v in json_data.items():
+                    if k not in data:
+                        data[k] = v
+                    else:
+                        data[k].extend(v)
+        resource_types = classify_resources_by_correlation(data, n)
+        apktool(apk_path)
         package, Main_activity, activities = component_extract(
-            f'apk/{app}/AndroidManifest.xml')
-        install_apk(apk_path)
-        for j in range(5):
+            f'{apk_path.split(".")[0]}/AndroidManifest.xml')
+        install_apks(apk_path, devices_name)
+        for j in range(1):
             list_activities = defaultdict(list)  # key为已执行到的活动列表, value为activity中测过的状态
             widget_list = defaultdict(int)  # 元素id列表，id具有唯一性, value记录index
-            bug_report = {}  # 发现的内存泄漏bug
+            bug_report = {}  # 发现的老化 bug
             state = set()  # 遍历到的状态
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} {app} {n} start")
             start_time = time.time()
@@ -470,7 +486,7 @@ if __name__ == '__main__':
             for i in range(n):
                 envs.append(multi_AppEnv(package, Main_activity, android_version, devices_name[i], ports[i]))
                 agents.append(ResourceQLearning(envs[i]))
-                tasks.append(Thread(target=agents[i].learn, args=(start_time, q_tables, resource_types[i])))
+                tasks.append(Thread(target=agents[i].learn, args=(start_time, q_tables, i + 1)))
                 tasks[i].start()
             for i in range(n):
                 tasks[i].join()
@@ -492,7 +508,7 @@ if __name__ == '__main__':
                         for state in value:
                             csv_writer.writerow([activity + '_' + ''.join(map(str, state[0])), state[1]])
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} {app} {n} stop")
-        uninstall_app(package)
+        uninstall_apps(package, devices_name)
 
 
 

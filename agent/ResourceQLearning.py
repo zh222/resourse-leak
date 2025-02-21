@@ -12,6 +12,10 @@ class ResourceQLearning:
         self.epsilon = epsilon
 
     def get_action(self, state, q_table):
+        if state not in q_table:
+            n = len(self.env.views)
+            if n != 0:
+                q_table[state] = {(i / n, 0, 0): 0 for i in range(n)}
         actions = q_table[state]
         if np.random.rand() < self.epsilon:
             return random.choice(list(actions.keys()))

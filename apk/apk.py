@@ -14,10 +14,23 @@ def install_apk(apk_path):
     assert 'Success' in result, "Failed to install APK"
 
 
+def install_apks(apk_path, devices):
+    for device in devices:
+        command = f'adb -s {device} install {apk_path}'
+        run_adb_command(command)
+
+
+
 def uninstall_app(package_name):
     command = f'adb uninstall {package_name}'
     result = run_adb_command(command)
     assert 'Success' in result, "Failed to uninstall APK"
+
+
+def uninstall_apps(package_name, devices):
+    for device in devices:
+        command = f'adb -s {device} uninstall {package_name}'
+        run_adb_command(command)
 
 
 def apktool(apk_path):
