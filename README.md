@@ -1,7 +1,10 @@
-使用 genymotion 中的 Google Pixel 模拟器，安卓版本 11.0；
-先做单智能体强化学习的实验，所有配置都可以在 main.py 中修改，主要有：
-* 算法导向：这里我暂时用 java heap, native heap, cpu, rss, activity coverage, random 这几种导向
-* 待测 app：我根据代码行数对 app 进行了分类，在文件夹 apk 中，低于 1W 行的为 low，大于 1W 小于 5W 行的为 middle，大于 5W 行的为 high；暂时各找了 5 个左右（但由于 genymotion 只支持 x86，可能有些没办法安装，后面还要继续加）。
-* ports：这个是 appium 与各个模拟器的通信端口，暂不考虑，等开始做多智能体的时候会用到。
-  
-我这边先做一下 high 规模的 app
+对于单智能体强化学习的实验，仅需要调整 main.py 中的 apps。
+暂时需要测试 17 个 app (即 文件夹 apk 中的 app)，我这里已经测过了 3 个，下面是分配任务：
+
+chen: low/KitchenOwl_9664.apk, low/neurolab_8284.apk, low/souvenirs_9206.apk
+nie: low/tuner_3690.apk, middle/AntennaPod_23793.apk, middle/bitbanana_23793.apk
+zheng: low/butterfly_6043.apk, low/selfprivacy_6043.apk, middle/free_30729.apk, 
+        middle/money_manager_ex_41537.apk, middle/taz_43892.apk, high/duckduckgo_106634.apk, 
+        high/myexpenses_137437.apk, high/redreader_62750.apk, 
+
+
