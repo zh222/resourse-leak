@@ -115,21 +115,14 @@ def main():
 
 if __name__ == '__main__':
     als = [
-        # "q_res_java heap",
-        # "q_res_native heap",
-        # "q_res_cpu",
-        # "q_res_rss",
-        # "q_cov",
-        # "random",
-        # "q_res_all",
+        "q_cov",
+        "random",
         "q_res_weight",
     ]
     apps = {
-        # "keepass": "apk/middle/keepass_25133.apk",
-        # "duckduckgo": "apk/high/duckduckgo_106634.apk",
+        "keepass": "apk/middle/keepass_25133.apk",
         # "k9mail": "apk/high/k9mail_162720.apk",
-        # "myexpenses": "apk/high/myexpenses_137437.apk",
-        "newpipe": "apk/high/newpipe_57363.apk"
+        # "newpipe": "apk/high/newpipe_57363.apk"
     }
     android_version = get_android_version()
     devices_name = get_device_name()
