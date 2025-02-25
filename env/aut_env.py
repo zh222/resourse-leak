@@ -177,13 +177,14 @@ class AndroidAppEnv(gym.Env):
         reward = -1
         if self.al == "resources":
             if self.current_activity and (self.current_activity not in self.list_activities or self.is_doubted_state()):
-                self.list_activities[self.current_activity].append([self.get_tuple_observation(), time.time() - self.start_time])
+                self.list_activities[self.current_activity].append([self.get_tuple_observation(), time.time() - self.start_time, 0, 0])
                 self.Edittext()
                 self.scroll_neutral()
                 is_bug = self.DOC()
                 self.home_return_operation()
                 self.notification_operation()
-                self.list_activities[self.current_activity][-1].extend([is_bug, temp_resource])
+                self.list_activities[self.current_activity][-1][2] = is_bug
+                self.list_activities[self.current_activity][-1][3] = temp_resource
                 self.update_views()
             later_resource = get_resource(self.package)
             resource_sensitivity = compute_resource_sensitivitis(self.resource, temp_resource, self.weight)
@@ -196,13 +197,14 @@ class AndroidAppEnv(gym.Env):
             return False, reward
         else:
             if self.current_activity and (self.current_activity not in self.list_activities or self.is_doubted_state()):
-                self.list_activities[self.current_activity].append([self.get_tuple_observation(), time.time() - self.start_time])
+                self.list_activities[self.current_activity].append([self.get_tuple_observation(), time.time() - self.start_time, 0, 0])
                 self.Edittext()
                 self.scroll_neutral()
                 is_bug = self.DOC()
                 self.home_return_operation()
                 self.notification_operation()
-                self.list_activities[self.current_activity][-1].extend([is_bug, temp_resource])
+                self.list_activities[self.current_activity][-1][2] = is_bug
+                self.list_activities[self.current_activity][-1][3] = temp_resource
                 self.update_views()
                 reward = 1000
             else:
