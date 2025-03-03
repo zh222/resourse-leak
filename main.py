@@ -134,6 +134,11 @@ if __name__ == '__main__':
         "neurolab": "apk/low/neurolab_8284.apk",
         "souvenirs": "apk/low/souvenirs_9206.apk",
         "tunner": "apk/low/tuner_3690.apk",
+
+        # "Gadgetbridge": "apk/high/Gadgetbridge_221736.apk",
+        # "geto": "apk/middle/geto_17393.apk",
+        # "Tilde Friends": "apk/middle/Tilde Friends_11119.apk",
+        # "Activity Manager": "apk/low/Activity Manager_7383.apk"
     }
     android_version = get_android_version()
     devices_name = get_device_name()
