@@ -1,6 +1,7 @@
 import random
 import re
 import subprocess
+import threading
 from collections import defaultdict
 import gymnasium as gym
 from appium.webdriver.common.appiumby import AppiumBy
@@ -12,8 +13,8 @@ import time
 import xml.etree.ElementTree as ET
 from selenium.common import StaleElementReferenceException, WebDriverException, InvalidSessionIdException, \
     InvalidElementStateException
-from resourse.resourse import (init_resource, append_resource, get_resource, compute_multi_resource_sensitivity,
-                               judge_resource, classify_resources_by_correlation)
+from resourse.resourse import (multi_get_resource, multi_init_resource, multi_append_resource, compute_multi_resource_sensitivity,
+                               judge_resource, classify_resources)
 from apk.apk import component_extract, apktool, install_apks, uninstall_apps
 import csv
 import os
@@ -22,6 +23,32 @@ import time
 import json
 from threading import Thread
 from agent.ResourceQLearning import ResourceQLearning
+from agent import global_data
+
+
+R = [
+    "Views",
+    "ViewRootImpl",
+    "AppContexts",
+    "Activities",
+    "Assets",
+    "AssetManagers",
+    "Local Binders",
+    "Proxy Binders",
+    "Parcel memory",
+    "Parcel count",
+    "Death Recipients",
+    "OpenSSL Sockets",
+    "WebViews",
+    "java heap",
+    "native heap",
+    "fd number",
+    "db number",
+    "wake lock number",
+    "socket number",
+    "cpu",
+    "rss",
+]
 
 
 def run_adb_command(command):
@@ -114,7 +141,8 @@ class multi_AppEnv(gym.Env):
         self.current_step = 0
         self.observation = self._get_observation()  # 当前状态-字典类型
         # 已遍历到的状态
-        self.resource = get_resource(self.package)  # 当前状态的资源占用，用于设置 reward
+        self.resource = multi_get_resource(self.package, self.device_name)  # 当前状态的资源占用，用于设置 reward
+        # self.check_activity()
 
     def reset(self, seed=None, optional=None):
         super().reset(seed=seed)
@@ -143,7 +171,7 @@ class multi_AppEnv(gym.Env):
         except StaleElementReferenceException:
             self._start()
             self.check_activity()
-            return self.observation, -100.0, False, False, {}
+            return self.observation, {key: -1000 for key in R}, False, False, {}
         except WebDriverException:
             try:
                 self._close()
@@ -151,15 +179,14 @@ class multi_AppEnv(gym.Env):
                 pass
             self._start()
             self.update_views()
-            return self.observation, -100.0, True, False, {}
+            return self.observation, {key: -1000 for key in R}, True, False, {}
         except Exception as e:
-            print(e)
             self._start()
             self.update_views()
-            return self.observation, -100.0, True, False, {}
+            return self.observation, {key: -1000 for key in R}, True, False, {}
 
     def step2(self, action_name):
-        print(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}, step:{self.current_step}")
+        print(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())},{self.device_name} step:{self.current_step}")
         action_name = self.normal_action(action_name)
         self.current_step += 1
         current_view = self.views[action_name[0]]
@@ -167,14 +194,13 @@ class multi_AppEnv(gym.Env):
             self.action(current_view, action_name)
         except Exception as e:
             print("操作失败，pass")
-            print(e)
             self.update_views()
-            return self.observation, 0, self._termination(), False, {}
+            return self.observation, {key: 0 for key in R}, self._termination(), False, {}
         out_side, reward = self.check_activity()
         if len(self.views) == 0:  # 当前页面没有事件则返回上一页
             self.driver.back()
             self.update_views()
-            return self.observation, -1000, self._termination(), False, {}
+            return self.observation, {key: -1000 for key in R}, self._termination(), False, {}
         if out_side:
             try:
                 self._close()
@@ -182,35 +208,46 @@ class multi_AppEnv(gym.Env):
                 pass
             self._start()
             self.update_views()
-            print(f'第{self.epi}轮,第{self.current_step}次训练,跳出app, reward: {reward}')
+            print(f'{self.device_name}  第{self.epi}轮,第{self.current_step}次训练,跳出app, reward: {reward}')
             return self.observation, reward, self._termination(), False, {}
-        print(f'第{self.epi}轮, 第{self.current_step}次训练, states:{len(state)}')
+        print(f'{self.device_name}  第{self.epi}轮, 第{self.current_step}次训练, states:{len(state)}')
         return self.observation, reward, self._termination(), False, {}
 
     def check_activity(self):
         # 检测是否跳到待测app外，没有则判断是否有资源泄露并计算reward
         if self.package != self.driver.current_package and self.driver.current_package != "com.android.permissioncontroller":
-            return True, -1000
+            return True, {key: -1000 for key in R}
         self.update_views()
         self.current_activity = get_current_activity(self.device_name)
-        temp_resource = get_resource(self.package)
-        resource_sensitivity = compute_multi_resource_sensitivity(self.resource, temp_resource, resource_types)
-        state.add(self.get_tuple_observation())
+        temp_resource = multi_get_resource(self.package, self.device_name)
+        reward = {key: -1 for key in R}
         if self.current_activity and (self.current_activity not in list_activities or self.is_doubted_state()):
-            list_activities[self.current_activity].append([self.get_tuple_observation(), time.time() - start_time])
-            self.DOC()
+            list_activities[self.current_activity].append(
+                [self.get_tuple_observation(), time.time() - start_time, 0, 0])
+            self.Edittext()
+            self.scroll_neutral()
+            is_bug = self.DOC()
+            self.home_return_operation()
+            self.notification_operation()
+            list_activities[self.current_activity][-1][2] = is_bug
+            list_activities[self.current_activity][-1][3] = temp_resource
             self.update_views()
-            self.resource = get_resource(self.package)
-            return False, resource_sensitivity
-        else:
-            return False, -1
+            resource_sensitivity = compute_multi_resource_sensitivity(self.resource, temp_resource, weight)
+            if self.get_tuple_observation() not in state:
+                multi_append_resource(self.package, data, self.device_name)
+                cg, centers = classify_resources(data, global_data.get_previous_centers(), n)
+                global_data.set_previous_centers_and_category(cg, centers)
+                reward = resource_sensitivity
+                state.add(self.get_tuple_observation())
+        self.resource = multi_get_resource(self.package, self.device_name)
+        return False, reward
 
     def is_doubted_state(self):
         # 新activity或者与之前相似度差异较大的state视为待测state
-        if list_activities[self.current_activity]:
+        if not list_activities[self.current_activity]:
             return True
-        for st, _ in list_activities[self.current_activity]:
-            if jaccard_similarity(st, self.get_tuple_observation()) > 0.5:
+        for state, _, _, _ in list_activities[self.current_activity]:
+            if jaccard_similarity(state, self.get_tuple_observation()) > 0.5:
                 return False
         return True
 
@@ -232,7 +269,6 @@ class multi_AppEnv(gym.Env):
             except InvalidElementStateException:
                 print('Impossible to insert string')
             except Exception as e:
-                print(e)
                 pass
         else:
             # 元素可点击
@@ -273,6 +309,126 @@ class multi_AppEnv(gym.Env):
                 print(f'swipe not performed start_position: ({x}, {y + 20}), end_position: ({x}, {y})')
         time.sleep(1)
 
+    def DOC(self):
+        print(f'{self.device_name} 开始执行DOC ' + self.current_activity + str(self.get_tuple_observation()))
+        resource = multi_init_resource(self.package, self.device_name)
+        for i in range(self.exe_number):
+            try:
+                self.driver.orientation = 'LANDSCAPE' if self.driver.orientation == 'PORTRAIT' else 'PORTRAIT'
+            except:
+                time.sleep(1)
+            time.sleep(3)
+            try:
+                self.driver.orientation = 'PORTRAIT' if self.driver.orientation == 'LANDSCAPE' else 'LANDSCAPE'
+            except:
+                time.sleep(1)
+            time.sleep(2)
+            multi_append_resource(self.package, resource, self.device_name)
+        judge_resource(resource)
+        if resource['is_bug']:
+            bug_report[self.current_activity + '_doc_' + ''.join(list(map(str, self.get_tuple_observation())))]\
+                = [resource, time.time() - start_time]
+        print(f'{self.device_name} DOC执行结束')
+        for bug in resource['is_bug']:
+            weight[bug] += 1
+        return resource['is_bug']
+
+    def Edittext(self):
+        print(f'{self.device_name} 开始执行text ' + self.current_activity + str(self.get_tuple_observation()))
+        text_boxes = self.driver.find_elements(AppiumBy.CLASS_NAME, "android.widget.EditText")  # 查找所有文本框
+        for text_box in text_boxes:
+            resource = multi_init_resource(self.package, self.device_name)
+            try:
+                for i in range(self.exe_number):
+                    text_box.click()  # 选中文本框
+                    current_string = ''.join(
+                        random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789')
+                        for _ in range(random.randint(5, 10)))
+                    text_box.send_keys(current_string)
+                    text_box.clear()
+                    multi_append_resource(self.package, resource, self.device_name)
+            except:
+                pass
+            judge_resource(resource)
+            if resource['is_bug']:
+                name = self.current_activity + '_text_' + self.return_attribute(text_box)
+                if name not in bug_report:
+                    bug_report[name] = [resource, time.time() - start_time]
+                    for bug in resource['is_bug']:
+                        weight[bug] += 1
+        print(f'{self.device_name} text 执行完毕')
+
+    def home_return_operation(self):
+        print(f'{self.device_name} 开始执行home ' + self.current_activity + str(self.get_tuple_observation()))
+        resource = multi_init_resource(self.package, self.device_name)
+        for i in range(self.exe_number):
+            try:
+                self.driver.press_keycode(3)
+            except:
+                pass
+            time.sleep(2)
+            try:
+                self.driver.activate_app(self.package)
+            except:
+                pass
+            time.sleep(2)
+            multi_append_resource(self.package, resource, self.device_name)
+        judge_resource(resource)
+        if resource['is_bug']:
+            bug_report[self.current_activity + '_home_' + ''.join(list(map(str, self.get_tuple_observation())))] \
+                = [resource, time.time() - start_time]
+        print(f'{self.device_name} home执行结束')
+        for bug in resource['is_bug']:
+            weight[bug] += 1
+
+    def notification_operation(self):
+        print(f'{self.device_name} 开始执行通知栏 ' + self.current_activity + str(self.get_tuple_observation()))
+        resource = multi_init_resource(self.package, self.device_name)
+        for i in range(self.exe_number):
+            try:
+                self.driver.open_notifications()
+            except:
+                pass
+            time.sleep(2)
+            try:
+                self.driver.press_keycode(4)
+            except:
+                pass
+            time.sleep(2)
+            multi_append_resource(self.package, resource, self.device_name)
+        judge_resource(resource)
+        if resource['is_bug']:
+            bug_report[self.current_activity + '_notification_' + ''.join(list(map(str, self.get_tuple_observation())))] \
+                = [resource, time.time() - start_time]
+        print(f'{self.device_name} 通知栏执行结束')
+        for bug in resource['is_bug']:
+            weight[bug] += 1
+
+    def scroll_neutral(self):
+        print(f'{self.device_name} 开始执行滑动操作 ')
+        for current_view in self.views.values():
+            if current_view['scrollable'] == 'true':
+                resource = multi_init_resource(self.package, self.device_name)
+                try:
+                    bounds = re.findall(r'\d+', current_view['view'].get_attribute('bounds'))
+                    bounds = [int(i) for i in bounds]
+                    for i in range(self.exe_number):
+                        self.scroll_action([0, 0], bounds)
+                        time.sleep(2)
+                        self.scroll_action([0, 1], bounds)
+                        time.sleep(2)
+                        multi_append_resource(self.package, resource, self.device_name)
+                except:
+                    pass
+                judge_resource(resource)
+                if resource['is_bug']:
+                    bug_report[self.current_activity + '_scroll_' + ''.join(
+                        list(map(str, self.get_tuple_observation())))] \
+                        = [resource, time.time() - start_time]
+                for bug in resource['is_bug']:
+                    weight[bug] += 1
+        print(f'{self.device_name} 滑动操作执行完毕')
+
     def _termination(self):
         # 一个episode是否结束
         return self.current_step >= self.max_steps
@@ -311,27 +467,6 @@ class multi_AppEnv(gym.Env):
     def get_tuple_observation(self):
         return tuple(self.observation['observation'])
 
-    def DOC(self):
-        print('开始执行DOC ' + self.current_activity)
-        resource = init_resource(self.package)
-        for i in range(self.exe_number):
-            try:
-                self.driver.orientation = 'LANDSCAPE' if self.driver.orientation == 'PORTRAIT' else 'PORTRAIT'
-            except:
-                time.sleep(1)
-            time.sleep(3)
-            try:
-                self.driver.orientation = 'PORTRAIT' if self.driver.orientation == 'LANDSCAPE' else 'LANDSCAPE'
-            except:
-                time.sleep(1)
-            time.sleep(2)
-            append_resource(self.package, resource)
-        judge_resource(resource)
-        if resource['is_bug']:
-            bug_report[self.current_activity + '_' + ''.join(list(map(str, self.get_tuple_observation())))]\
-                = [resource, time.time() - start_time]
-        print('DOC执行结束')
-
     def update_views(self):
         # 反复获取当前页面的所有元素信息，防止出现问题
         i = 0
@@ -348,7 +483,6 @@ class multi_AppEnv(gym.Env):
             except Exception as e:
                 i += 1
                 print(f"第{i}次获取元素信息失败，重新获取")
-                print(e)
                 if i >= 5:
                     print('Too Many times tried')
                     try:
@@ -358,7 +492,6 @@ class multi_AppEnv(gym.Env):
                     self._start()
 
     def get_all_views(self):
-        # 获取页面内所有可操作的元素
         page = self.driver.page_source
         tree = ET.fromstring(page)
         elements = tree.findall(".//*[@clickable='true']") + tree.findall(".//*[@scrollable='true']") + \
@@ -380,13 +513,11 @@ class multi_AppEnv(gym.Env):
                                            'long-clickable': long_clickable}})
                     i += 1
                 if tag == "android.widget.EditText":
-                    e.click()
-                    current_string = ''.join(
-                        random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789')
-                        for _ in range(random.randint(5, 10)))
-                    e.send_keys(current_string)
+                    self.views.update({i: {'view': e, 'identifier': self.return_attribute(e), 'class_name': tag,
+                                           'clickable': clickable, 'scrollable': scrollable,
+                                           'long-clickable': long_clickable}})
                 self.static_views.append(self.return_attribute(e))
-        self.views[i] = {'view': None}
+        self.views[i] = {'view': None, 'scrollable': False}
         self.observation = self._get_observation()
 
     def return_attribute(self, my_view):
@@ -432,7 +563,7 @@ class multi_AppEnv(gym.Env):
                 self.observation = self._get_observation()
                 break
             except Exception as e:
-                print(f"连接失败，尝试重新连接: {e}")
+                print(f"连接失败，尝试重新连接:")
                 try:
                     self._close()
                     time.sleep(2)
@@ -442,12 +573,8 @@ class multi_AppEnv(gym.Env):
 
 
 if __name__ == '__main__':
-    apps = {
-        # 'KitchenOwl': 'apk/KitchenOwl.apk',
-        'duckduckgo': 'apk/high/duckduckgo_106634.apk'
-    }
-    data = None  # 单智能体实验时收集到的资源指标时序数据
-    n = 2  # 把资源分为多少类
+    apps = global_data.apps
+    n = global_data.N  # 把资源分为多少类
     ports = [
         # 端口号，用于与不同的模拟器通信
         '4723',
@@ -458,16 +585,6 @@ if __name__ == '__main__':
     android_version = get_android_version()  # 安卓版本
     devices_name = get_device_name()  # 设备名
     for app, apk_path in apps.items():
-        data = {}
-        for i in range(5):
-            with open(f'result/duckduckgo/{i + 1}/q_cov_state_resource.json', 'r') as f:
-                json_data = json.load(f)
-                for k, v in json_data.items():
-                    if k not in data:
-                        data[k] = v
-                    else:
-                        data[k].extend(v)
-        resource_types = classify_resources_by_correlation(data, n)
         apktool(apk_path)
         package, Main_activity, activities = component_extract(
             f'{apk_path.split(".")[0]}/AndroidManifest.xml')
@@ -477,16 +594,17 @@ if __name__ == '__main__':
             widget_list = defaultdict(int)  # 元素id列表，id具有唯一性, value记录index
             bug_report = {}  # 发现的老化 bug
             state = set()  # 遍历到的状态
+            weight = {key: 1 for key in R}  # 资源的权重
+            data = multi_init_resource(package, devices_name[0])
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} {app} {n} start")
             start_time = time.time()
             envs = []
             agents = []
-            q_tables = {res_type: {} for res_type in resource_types}
             tasks = []
             for i in range(n):
                 envs.append(multi_AppEnv(package, Main_activity, android_version, devices_name[i], ports[i]))
                 agents.append(ResourceQLearning(envs[i]))
-                tasks.append(Thread(target=agents[i].learn, args=(start_time, q_tables, i + 1)))
+                tasks.append(Thread(target=agents[i].learn, args=(start_time, i + 1)))
                 tasks[i].start()
             for i in range(n):
                 tasks[i].join()

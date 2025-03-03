@@ -415,7 +415,7 @@ class AndroidAppEnv(gym.Env):
                     append_resource(self.package, resource)
                 judge_resource(resource)
                 if resource['is_bug']:
-                    self.bug_report[self.current_activity + '_notification_' + ''.join(
+                    self.bug_report[self.current_activity + '_scroll_' + ''.join(
                         list(map(str, self.get_tuple_observation())))] \
                         = [resource, time.time() - self.start_time]
                 for bug in resource['is_bug']:
@@ -473,11 +473,6 @@ class AndroidAppEnv(gym.Env):
                     self.views.update({i: {'view': e, 'identifier': self.return_attribute(e), 'class_name': tag,
                                            'clickable': clickable, 'scrollable': scrollable,
                                            'long-clickable': long_clickable}})
-                    # e.click()
-                    # current_string = ''.join(
-                    #     random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789')
-                    #     for _ in range(random.randint(5, 10)))
-                    # e.send_keys(current_string)
                 self.static_views.append(self.return_attribute(e))
         self.views[i] = {'view': None, 'scrollable': False}
         self.observation = self._get_observation()
@@ -520,9 +515,6 @@ class AndroidAppEnv(gym.Env):
             try:
                 self.driver = webdriver.Remote('http://127.0.0.1:4723/wd/hub', self.desired_caps)
                 time.sleep(5)
-                self.current_activity = get_current_activity()
-                self.update_views()
-                self.observation = self._get_observation()
                 break
             except Exception as e:
                 print(f"连接失败，尝试重新连接")
@@ -532,6 +524,9 @@ class AndroidAppEnv(gym.Env):
                 except:
                     time.sleep(2)
             i += 1
+        self.current_activity = get_current_activity()
+        self.update_views()
+        self.observation = self._get_observation()
             # if i % 15 == 0:
             #     try:
             #         subprocess.Popen('adb shell reboot -p',

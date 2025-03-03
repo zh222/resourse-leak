@@ -115,14 +115,25 @@ def main():
 
 if __name__ == '__main__':
     als = [
+        "q_res_weight",
         "q_cov",
         "random",
-        "q_res_weight",
     ]
     apps = {
-        "keepass": "apk/middle/keepass_25133.apk",
+        # "keepass": "apk/middle/keepass_25133.apk",
         # "k9mail": "apk/high/k9mail_162720.apk",
         # "newpipe": "apk/high/newpipe_57363.apk"
+        # "free": "apk/middle/free_30729.apk",
+        # "money_manager_ex": "apk/middle/money_manager_ex_41537.apk",
+        # "myexpenses": "apk/high/myexpenses_137437.apk",
+        # "redreader": "apk/high/redreader_62750.apk",
+        # "taz": "apk/middle/taz_43892",
+        "AntennaPod": "apk/middle/AntennaPod_23793.apk",
+        "bitbanana": "apk/middle/bitbanana_39794.apk",
+        "KitchenOwl": "apk/low/KitchenOwl_9664.apk",
+        "neurolab": "apk/low/neurolab_8284.apk",
+        "souvenirs": "apk/low/souvenirs_9206.apk",
+        "tunner": "apk/low/tuner_3690.apk",
     }
     android_version = get_android_version()
     devices_name = get_device_name()
