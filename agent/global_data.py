@@ -26,8 +26,28 @@ R = [
     "rss",
 ]
 apps = {
-    'taz': 'apk/middle/taz_43892.apk'
-    }
+    "keepassDroid": "apk/middle/keepassDroid_25133.apk",
+    "k9mail": "apk/high/k9mail_162720.apk",
+    "newpipe": "apk/high/newpipe_57363.apk",
+    "RunnerUp": "apk/middle/RunnerUp_30729.apk",
+    "money_manager_ex": "apk/middle/money_manager_ex_41537.apk",
+    "myexpenses": "apk/high/myexpenses_137437.apk",
+    "redreader": "apk/high/redreader_62750.apk",
+    "taz": "apk/middle/taz_43892.apk",
+    "AntennaPod": "apk/middle/AntennaPod_23793.apk",
+    "butterfly": "apk/low/butterfly_6043.apk",
+    "selfprivacy": "apk/low/selfprivacy_6043.apk",
+    "KitchenOwl": "apk/low/KitchenOwl_9664.apk",
+    "neurolab": "apk/low/neurolab_8284.apk",
+    "souvenirs": "apk/low/souvenirs_9206.apk",
+    "tunner": "apk/low/tuner_3690.apk",
+    "bitbanana": "apk/middle/bitbanana_39794.apk",
+
+    "Gadgetbridge": "apk/high/Gadgetbridge_221736.apk",
+    "Easter_Eggs": "apk/middle/Easter_Eggs_32771.apk",
+    "News_Reader": "apk/low/News_Reader_7358.apk",
+    "Activity_Manager": "apk/low/Activity_Manager_7383.apk",
+}
 
 N = 2
 

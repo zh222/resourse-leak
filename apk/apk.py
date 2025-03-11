@@ -71,10 +71,21 @@ def component_extract(xml_file):
     xml = parse_xml_to_dict(xml_file)
     activities = []
     Main_activity = ''
-    for activity in xml['manifest']['application']['activity']:
-        activities.append(activity['@attributes']['{http://schemas.android.com/apk/res/android}name'])
-        if 'android.intent.action.MAIN' in str(activity):
-            Main_activity = activities[-1]
+    if isinstance(xml['manifest']['application']['activity'], list):
+        for activity in xml['manifest']['application']['activity']:
+
+            activities.append(activity['@attributes']['{http://schemas.android.com/apk/res/android}name'])
+            if 'android.intent.action.MAIN' in str(activity):
+                Main_activity = activities[-1]
+
+    else:
+        for activity in xml['manifest']['application']['activity'].keys():
+            try:
+                activities.append(activity['@attributes']['{http://schemas.android.com/apk/res/android}name'])
+                if 'android.intent.action.MAIN' in str(activity):
+                    Main_activity = activities[-1]
+            except:
+                pass
     package = xml['manifest']['@attributes']['package']
     return package, Main_activity, activities
 
@@ -151,5 +162,4 @@ def count_lines(directory, extensions=(".java", ".kt")):
 
 
 if __name__ == '__main__':
-    path = "D:\File\Android-Aging-Test-ss_test\paper\\app rource\org.totschnig.myexpenses_774_src"
-    print(count_lines(path))
+    print(count_lines("D:\File\Android-Aging-Test-ss_test\paper\\app rource\livio.rssreader_110_src"))

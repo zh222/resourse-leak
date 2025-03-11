@@ -1,7 +1,6 @@
 import random
 import re
-import subprocess
-import threading
+
 from collections import defaultdict
 import gymnasium as gym
 from appium.webdriver.common.appiumby import AppiumBy
@@ -143,6 +142,7 @@ class multi_AppEnv(gym.Env):
         # 已遍历到的状态
         self.resource = multi_get_resource(self.package, self.device_name)  # 当前状态的资源占用，用于设置 reward
         # self.check_activity()
+        self.states = set()
 
     def reset(self, seed=None, optional=None):
         super().reset(seed=seed)
@@ -219,6 +219,7 @@ class multi_AppEnv(gym.Env):
             return True, {key: -1000 for key in R}
         self.update_views()
         self.current_activity = get_current_activity(self.device_name)
+        self.states.add(self.get_tuple_observation())
         temp_resource = multi_get_resource(self.package, self.device_name)
         reward = {key: -1 for key in R}
         if self.current_activity and (self.current_activity not in list_activities or self.is_doubted_state()):
@@ -625,6 +626,12 @@ if __name__ == '__main__':
                     if activity:
                         for state in value:
                             csv_writer.writerow([activity + '_' + ''.join(map(str, state[0])), state[1]])
+            for i in range(n):
+                with open(f'result/{app}/{j + 1}/state_n_{i}.csv', 'w', newline='', encoding='utf-8') as f:
+                    csv_writer = csv.writer(f)
+                    csv_writer.writerow(['states'])
+                    for state in envs[i].states:
+                        csv_writer.writerow([state])
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} {app} {n} stop")
         uninstall_apps(package, devices_name)
 

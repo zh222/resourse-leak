@@ -49,14 +49,17 @@ def RQ1():
     for app_name in apps:  # app 列表
         for i in range(n):  # 实验重复次数
             for al in als:  # 算法列表
-                with open(f"result/{app_name}/{i + 1}/{al}_bug_report.json", "r") as fp:
-                    data = json.load(fp)
-                    for state, [bugs, t] in data.items():
-                        for resource, bug in bugs.items():
-                            if isinstance(bug, dict) and bug["is_bug"]:
-                                if app_name == 'taz' and resource == 'Local Binders' and 40 < bug['value'][0] < 45:
-                                    plot_data(bug['value'], '中性序列执行次数', resource, f"{app_name}_{state.split('_')[0]}_{state.split('_')[1]}")
-                                    time.sleep(2)
+                try:
+                    with open(f"result/{app_name}/{i + 1}/{al}_bug_report.json", "r") as fp:
+                        data = json.load(fp)
+                        for state, [bugs, t] in data.items():
+                            for resource, bug in bugs.items():
+                                if isinstance(bug, dict) and bug["is_bug"]:
+                                    if resource == 'java heap' and state.split('_')[1] == 'doc':
+                                        plot_data(bug['value'], '中性序列执行次数', resource, f"{app_name}_{state.split('_')[0]}_{state.split('_')[1]}")
+                                        time.sleep(2)
+                except:
+                    pass
 
 
 def RQ2():
@@ -118,7 +121,7 @@ def RQ4():
 
 if __name__ == "__main__":
     n = 2  # 实验重复次数
-    # RQ1()
-    RQ2()
+    RQ1()
+    # RQ2()
     # RQ3()
     # RQ4()

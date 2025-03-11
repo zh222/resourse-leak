@@ -7,6 +7,7 @@ from env.aut_env import AndroidAppEnv
 from agent.Q import QLearningAgent
 from agent.Random import RandomAgent
 from apk.apk import install_apk, uninstall_app, apktool, component_extract
+# from agent.sac import learn
 
 
 def run_adb_command(command):
@@ -60,6 +61,10 @@ def run(al, app, package, main_activity, activities):
                                 ports[0], start_time, al.split('_')[-1])
             agent = RandomAgent(env)
             agent.learn(start_time)
+        # elif al == 'sac':
+        #     env = AndroidAppEnv(package, main_activity, 'resources', activities, android_version, devices_name[0],
+        #                         ports[0], start_time, al.split('_')[-1])
+        #     learn(env, start_time)
         all_res.append([len(env.bug_report), len(env.list_activities), len(env.state)])
         if not os.path.exists('result'):
             os.mkdir('result')
@@ -82,6 +87,9 @@ def run(al, app, package, main_activity, activities):
             csv_writer = csv.writer(f)
             csv_writer.writerow(['bugs', f'activities/{len(activities)}', 'states'])
             csv_writer.writerow([len(env.bug_report), len(env.list_activities), len(env.state)])
+        with open(f'result/{app}/{i + 1}/{al}_epi.csv', 'w', newline='', encoding='utf-8') as f:
+            csv_writer = csv.writer(f)
+            csv_writer.writerow([env.epi])
         with open(f'result/{app}/{i + 1}/{al}_state_time.csv', 'w', newline='', encoding='utf-8') as f:
             csv_writer = csv.writer(f)
             csv_writer.writerow(['activity_state', 'time', 'is_bug', 'resource'])
@@ -105,6 +113,8 @@ def main():
         install_apk(apk_path)
         package, Main_activity, activities = component_extract(
             f'{apk_path.split(".")[0]}/AndroidManifest.xml')
+        if package == 'app.michaelwuensch.bitbanana':
+            Main_activity = "app.michaelwuensch.bitbanana.home.HomeActivity"
         for al in als:
             print(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} {app} {al} start")
             res = run(al, app, package, Main_activity, activities)
@@ -120,25 +130,27 @@ if __name__ == '__main__':
         "random",
     ]
     apps = {
-        # "keepass": "apk/middle/keepass_25133.apk",
+        # "keepassDroid": "apk/middle/keepassDroid_25133.apk",
         # "k9mail": "apk/high/k9mail_162720.apk",
-        # "newpipe": "apk/high/newpipe_57363.apk"
-        # "free": "apk/middle/free_30729.apk",
+        "newpipe": "apk/high/newpipe_57363.apk",
+        # "RunnerUp": "apk/middle/RunnerUp_30729.apk",
         # "money_manager_ex": "apk/middle/money_manager_ex_41537.apk",
         # "myexpenses": "apk/high/myexpenses_137437.apk",
         # "redreader": "apk/high/redreader_62750.apk",
-        # "taz": "apk/middle/taz_43892",
+        # "taz": "apk/middle/taz_43892.apk",
         "AntennaPod": "apk/middle/AntennaPod_23793.apk",
-        "bitbanana": "apk/middle/bitbanana_39794.apk",
-        "KitchenOwl": "apk/low/KitchenOwl_9664.apk",
-        "neurolab": "apk/low/neurolab_8284.apk",
-        "souvenirs": "apk/low/souvenirs_9206.apk",
+        # "butterfly": "apk/low/butterfly_6043.apk",
+        # "selfprivacy": "apk/low/selfprivacy_6043.apk",
+        # "KitchenOwl": "apk/low/KitchenOwl_9664.apk",
+        # "neurolab": "apk/low/neurolab_8284.apk",
+        # "souvenirs": "apk/low/souvenirs_9206.apk",
         "tunner": "apk/low/tuner_3690.apk",
+        # "bitbanana": "apk/middle/bitbanana_39794.apk",
 
         # "Gadgetbridge": "apk/high/Gadgetbridge_221736.apk",
-        # "geto": "apk/middle/geto_17393.apk",
-        # "Tilde Friends": "apk/middle/Tilde Friends_11119.apk",
-        # "Activity Manager": "apk/low/Activity Manager_7383.apk"
+        # "Easter_Eggs": "apk/middle/Easter_Eggs_32771.apk",
+        # "News_Reader": "apk/low/News_Reader_7358.apk",
+        # "Activity_Manager": "apk/low/Activity_Manager_7383.apk",
     }
     android_version = get_android_version()
     devices_name = get_device_name()
@@ -146,3 +158,13 @@ if __name__ == '__main__':
         '4723',
     ]
     main()
+    # jjj = {key:{} for key in apps.keys()}
+    # for app, apk_path in apps.items():
+    #     apktool(apk_path)
+    #     package, Main_activity, activities = component_extract(
+    #         f'{apk_path.split(".")[0]}/AndroidManifest.xml')
+    #     jjj[app]["package"] = package
+    #     jjj[app]["Main_activity"] = Main_activity
+    #     jjj[app]["activities"] = activities
+    # with open(f'apps.json', 'w', encoding='utf-8') as json_file:
+    #     json.dump(jjj, json_file, ensure_ascii=False, indent=4)
